@@ -1,0 +1,302 @@
+# KubeStellar CRDs for Testing
+# These are simplified CRDs for testing the Terraform provider
+# In production, use the official KubeStellar CRDs
+
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: bindingpolicies.control.kubestellar.io
+spec:
+  group: control.kubestellar.io
+  names:
+    kind: BindingPolicy
+    listKind: BindingPolicyList
+    plural: bindingpolicies
+    singular: bindingpolicy
+    shortNames:
+      - bp
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                clusterSelectors:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      matchLabels:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      matchExpressions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            operator:
+                              type: string
+                            values:
+                              type: array
+                              items:
+                                type: string
+                downsync:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      apiGroup:
+                        type: string
+                      resources:
+                        type: array
+                        items:
+                          type: string
+                      namespaces:
+                        type: array
+                        items:
+                          type: string
+                      namespaceScoped:
+                        type: boolean
+                      objectNames:
+                        type: array
+                        items:
+                          type: string
+                      objectSelectors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            matchLabels:
+                              type: object
+                              additionalProperties:
+                                type: string
+                      statusCollection:
+                        type: object
+                        properties:
+                          statusCollectionMode:
+                            type: string
+                wantSingletonReportedState:
+                  type: boolean
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                matchedClusters:
+                  type: array
+                  items:
+                    type: string
+                matchedWorkloads:
+                  type: integer
+                lastAppliedTime:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: Clusters
+          type: integer
+          jsonPath: .status.matchedClusterCount
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: managedclusters.control.kubestellar.io
+spec:
+  group: control.kubestellar.io
+  names:
+    kind: ManagedCluster
+    listKind: ManagedClusterList
+    plural: managedclusters
+    singular: managedcluster
+    shortNames:
+      - mc
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                clusterName:
+                  type: string
+                description:
+                  type: string
+                location:
+                  type: string
+                cloudProvider:
+                  type: string
+                environment:
+                  type: string
+                apiEndpoint:
+                  type: string
+                caData:
+                  type: string
+                tokenRef:
+                  type: string
+                kubeconfigSecret:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                ready:
+                  type: boolean
+                kubernetesVersion:
+                  type: string
+                nodeCount:
+                  type: integer
+                lastSyncTime:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Version
+          type: string
+          jsonPath: .status.kubernetesVersion
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: workloaddefinitionspaces.control.kubestellar.io
+spec:
+  group: control.kubestellar.io
+  names:
+    kind: WorkloadDefinitionSpace
+    listKind: WorkloadDefinitionSpaceList
+    plural: workloaddefinitionspaces
+    singular: workloaddefinitionspace
+    shortNames:
+      - wds
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                spaceType:
+                  type: string
+                  enum:
+                    - vcluster
+                    - kind
+                    - external
+                apiEndpoint:
+                  type: string
+                caData:
+                  type: string
+                tokenRef:
+                  type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                ready:
+                  type: boolean
+                apiEndpoint:
+                  type: string
+      subresources:
+        status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: inventorytransportspaces.control.kubestellar.io
+spec:
+  group: control.kubestellar.io
+  names:
+    kind: InventoryTransportSpace
+    listKind: InventoryTransportSpaceList
+    plural: inventorytransportspaces
+    singular: inventorytransportspace
+    shortNames:
+      - its
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                spaceType:
+                  type: string
+                  enum:
+                    - vcluster
+                    - kind
+                    - external
+                apiEndpoint:
+                  type: string
+                caData:
+                  type: string
+                tokenRef:
+                  type: string
+                syncInterval:
+                  type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                ready:
+                  type: boolean
+                clusterCount:
+                  type: integer
+      subresources:
+        status: {}
