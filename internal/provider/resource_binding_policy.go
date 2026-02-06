@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -493,7 +494,7 @@ func (r *BindingPolicyResource) Update(ctx context.Context, req resource.UpdateR
 
 	// Build updated spec
 	updated := r.buildBindingPolicyObject(ctx, data)
-	
+
 	// Preserve resource version
 	current.Object["spec"] = updated.Object["spec"]
 	current.Object["metadata"].(map[string]interface{})["labels"] = updated.Object["metadata"].(map[string]interface{})["labels"]
@@ -570,7 +571,22 @@ func (r *BindingPolicyResource) Delete(ctx context.Context, req resource.DeleteR
 
 // ImportState imports an existing BindingPolicy resource
 func (r *BindingPolicyResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	// Parse the import ID which is in the format: namespace/name
+	parts := strings.Split(req.ID, "/")
+	if len(parts) != 2 {
+		resp.Diagnostics.AddError(
+			"Invalid Import ID",
+			fmt.Sprintf("Expected import ID in format 'namespace/name', got: %s", req.ID),
+		)
+		return
+	}
+
+	namespace := parts[0]
+	name := parts[1]
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("namespace"), namespace)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("name"), name)...)
 }
 
 // Helper functions
@@ -612,7 +628,7 @@ func (r *BindingPolicyResource) buildBindingPolicyObject(ctx context.Context, da
 	// Build cluster selectors
 	if data.ClusterSelector != nil {
 		clusterSelector := map[string]interface{}{}
-		
+
 		if !data.ClusterSelector.MatchLabels.IsNull() {
 			matchLabels := make(map[string]interface{})
 			for k, v := range data.ClusterSelector.MatchLabels.Elements() {
@@ -685,7 +701,7 @@ func (r *BindingPolicyResource) buildBindingPolicyObject(ctx context.Context, da
 			for _, os := range ds.ObjectSelectors.Elements() {
 				osObj := os.(types.Object)
 				selector := map[string]interface{}{}
-				
+
 				// Extract match_labels from the object
 				attrs := osObj.Attributes()
 				if matchLabelsAttr, ok := attrs["match_labels"]; ok {
@@ -698,7 +714,7 @@ func (r *BindingPolicyResource) buildBindingPolicyObject(ctx context.Context, da
 						selector["matchLabels"] = matchLabels
 					}
 				}
-				
+
 				selectors = append(selectors, selector)
 			}
 			downsync["objectSelectors"] = selectors
@@ -729,10 +745,166 @@ func (r *BindingPolicyResource) updateDataFromObject(ctx context.Context, obj ma
 		data.Labels = labelsValue
 	}
 
+	if annotations, ok := metadata["annotations"].(map[string]interface{}); ok && len(annotations) > 0 {
+		annotationMap := make(map[string]string)
+		for k, v := range annotations {
+			annotationMap[k] = v.(string)
+		}
+		annotationsValue, _ := types.MapValueFrom(ctx, types.StringType, annotationMap)
+		data.Annotations = annotationsValue
+	}
+
+	// Read spec fields
+	if spec, ok := obj["spec"].(map[string]interface{}); ok {
+		// Read clusterSelectors
+		if clusterSelectors, ok := spec["clusterSelectors"].([]interface{}); ok && len(clusterSelectors) > 0 {
+			// Use the first cluster selector
+			if cs, ok := clusterSelectors[0].(map[string]interface{}); ok {
+				clusterSelector := &ClusterSelectorModel{}
+
+				if matchLabels, ok := cs["matchLabels"].(map[string]interface{}); ok {
+					labelMap := make(map[string]string)
+					for k, v := range matchLabels {
+						labelMap[k] = v.(string)
+					}
+					mlValue, _ := types.MapValueFrom(ctx, types.StringType, labelMap)
+					clusterSelector.MatchLabels = mlValue
+				} else {
+					clusterSelector.MatchLabels = types.MapNull(types.StringType)
+				}
+
+				if matchExpressions, ok := cs["matchExpressions"].([]interface{}); ok {
+					for _, expr := range matchExpressions {
+						if exprMap, ok := expr.(map[string]interface{}); ok {
+							reqModel := LabelSelectorRequirementModel{
+								Key:      types.StringValue(exprMap["key"].(string)),
+								Operator: types.StringValue(exprMap["operator"].(string)),
+							}
+							if values, ok := exprMap["values"].([]interface{}); ok {
+								var valList []attr.Value
+								for _, v := range values {
+									valList = append(valList, types.StringValue(v.(string)))
+								}
+								reqModel.Values = types.ListValueMust(types.StringType, valList)
+							} else {
+								reqModel.Values = types.ListNull(types.StringType)
+							}
+							clusterSelector.MatchExpressions = append(clusterSelector.MatchExpressions, reqModel)
+						}
+					}
+				}
+
+				data.ClusterSelector = clusterSelector
+			}
+		}
+
+		// Read downsync
+		if downsyncs, ok := spec["downsync"].([]interface{}); ok {
+			data.Downsync = []DownsyncModel{}
+			for _, ds := range downsyncs {
+				if dsMap, ok := ds.(map[string]interface{}); ok {
+					downsyncModel := DownsyncModel{}
+
+					if apiGroup, ok := dsMap["apiGroup"].(string); ok {
+						downsyncModel.APIGroup = types.StringValue(apiGroup)
+					} else {
+						downsyncModel.APIGroup = types.StringValue("")
+					}
+
+					if namespaceScoped, ok := dsMap["namespaceScoped"].(bool); ok {
+						downsyncModel.NamespaceScoped = types.BoolValue(namespaceScoped)
+					} else {
+						downsyncModel.NamespaceScoped = types.BoolValue(true)
+					}
+
+					if resources, ok := dsMap["resources"].([]interface{}); ok {
+						var resList []attr.Value
+						for _, r := range resources {
+							resList = append(resList, types.StringValue(r.(string)))
+						}
+						downsyncModel.Resources = types.ListValueMust(types.StringType, resList)
+					} else {
+						downsyncModel.Resources = types.ListNull(types.StringType)
+					}
+
+					if namespaces, ok := dsMap["namespaces"].([]interface{}); ok {
+						var nsList []attr.Value
+						for _, ns := range namespaces {
+							nsList = append(nsList, types.StringValue(ns.(string)))
+						}
+						downsyncModel.Namespaces = types.ListValueMust(types.StringType, nsList)
+					} else {
+						downsyncModel.Namespaces = types.ListNull(types.StringType)
+					}
+
+					if objectNames, ok := dsMap["objectNames"].([]interface{}); ok {
+						var namesList []attr.Value
+						for _, n := range objectNames {
+							namesList = append(namesList, types.StringValue(n.(string)))
+						}
+						downsyncModel.ObjectNames = types.ListValueMust(types.StringType, namesList)
+					} else {
+						downsyncModel.ObjectNames = types.ListNull(types.StringType)
+					}
+
+					// Read status collection
+					if statusCol, ok := dsMap["statusCollection"].(map[string]interface{}); ok {
+						if mode, ok := statusCol["statusCollectionMode"].(string); ok {
+							downsyncModel.StatusCollection = types.StringValue(mode)
+						} else {
+							downsyncModel.StatusCollection = types.StringValue("None")
+						}
+					} else {
+						downsyncModel.StatusCollection = types.StringValue("None")
+					}
+
+					// ObjectSelectors - use the correct type that matches schema
+					matchExpressionType := types.ObjectType{
+						AttrTypes: map[string]attr.Type{
+							"key":      types.StringType,
+							"operator": types.StringType,
+							"values":   types.ListType{ElemType: types.StringType},
+						},
+					}
+					objectSelectorType := types.ObjectType{
+						AttrTypes: map[string]attr.Type{
+							"match_labels":      types.MapType{ElemType: types.StringType},
+							"match_expressions": types.ListType{ElemType: matchExpressionType},
+						},
+					}
+					downsyncModel.ObjectSelectors = types.ListNull(objectSelectorType)
+
+					data.Downsync = append(data.Downsync, downsyncModel)
+				}
+			}
+		}
+
+		// Read wantSingletonReportedState
+		if wantSingleton, ok := spec["wantSingletonReportedState"].(bool); ok {
+			data.WantSingletonReportedState = types.BoolValue(wantSingleton)
+		} else {
+			data.WantSingletonReportedState = types.BoolValue(false)
+		}
+	}
+
 	r.updateStatusFromObject(ctx, obj, data)
 }
 
 func (r *BindingPolicyResource) updateStatusFromObject(ctx context.Context, obj map[string]interface{}, data *BindingPolicyResourceModel) {
+	// Set defaults for computed status fields
+	if data.Status.IsNull() || data.Status.IsUnknown() {
+		data.Status = types.StringValue("Pending")
+	}
+	if data.MatchedWorkloads.IsNull() || data.MatchedWorkloads.IsUnknown() {
+		data.MatchedWorkloads = types.Int64Value(0)
+	}
+	if data.MatchedClusters.IsNull() || data.MatchedClusters.IsUnknown() {
+		data.MatchedClusters = types.ListValueMust(types.StringType, []attr.Value{})
+	}
+	if data.LastAppliedTime.IsNull() || data.LastAppliedTime.IsUnknown() {
+		data.LastAppliedTime = types.StringValue("")
+	}
+
 	if status, ok := obj["status"].(map[string]interface{}); ok {
 		if phase, ok := status["phase"].(string); ok {
 			data.Status = types.StringValue(phase)
@@ -748,6 +920,9 @@ func (r *BindingPolicyResource) updateStatusFromObject(ctx context.Context, obj 
 
 		if count, ok := status["matchedWorkloads"].(int64); ok {
 			data.MatchedWorkloads = types.Int64Value(count)
+		} else if count, ok := status["matchedWorkloads"].(float64); ok {
+			// JSON unmarshaling often produces float64 for numbers
+			data.MatchedWorkloads = types.Int64Value(int64(count))
 		}
 
 		if lastApplied, ok := status["lastAppliedTime"].(string); ok {

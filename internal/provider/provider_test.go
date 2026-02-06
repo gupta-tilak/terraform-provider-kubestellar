@@ -7,9 +7,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
-	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	testingresource "github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 // testAccProtoV6ProviderFactories are used to instantiate a provider during
@@ -27,16 +29,16 @@ func testAccPreCheck(t *testing.T) {
 
 // TestAccResourceBindingPolicy_basic tests basic BindingPolicy creation
 func TestAccResourceBindingPolicy_basic(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	testingresource.Test(t, testingresource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
+		Steps: []testingresource.TestStep{
 			// Create and Read testing
 			{
 				Config: testAccResourceBindingPolicyConfig_basic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("kubestellar_binding_policy.test", "name", "test-policy"),
-					resource.TestCheckResourceAttr("kubestellar_binding_policy.test", "namespace", "default"),
+				Check: testingresource.ComposeAggregateTestCheckFunc(
+					testingresource.TestCheckResourceAttr("kubestellar_binding_policy.test", "name", "test-policy"),
+					testingresource.TestCheckResourceAttr("kubestellar_binding_policy.test", "namespace", "default"),
 				),
 			},
 			// ImportState testing
@@ -48,9 +50,9 @@ func TestAccResourceBindingPolicy_basic(t *testing.T) {
 			// Update and Read testing
 			{
 				Config: testAccResourceBindingPolicyConfig_updated(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("kubestellar_binding_policy.test", "name", "test-policy"),
-					resource.TestCheckResourceAttr("kubestellar_binding_policy.test", "labels.%", "1"),
+				Check: testingresource.ComposeAggregateTestCheckFunc(
+					testingresource.TestCheckResourceAttr("kubestellar_binding_policy.test", "name", "test-policy"),
+					testingresource.TestCheckResourceAttr("kubestellar_binding_policy.test", "labels.%", "1"),
 				),
 			},
 		},
@@ -109,16 +111,16 @@ resource "kubestellar_binding_policy" "test" {
 
 // TestAccResourceCluster_basic tests basic Cluster registration
 func TestAccResourceCluster_basic(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	testingresource.Test(t, testingresource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
+		Steps: []testingresource.TestStep{
 			{
 				Config: testAccResourceClusterConfig_basic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("kubestellar_cluster.test", "name", "test-cluster"),
-					resource.TestCheckResourceAttr("kubestellar_cluster.test", "cluster_name", "test-cluster"),
-					resource.TestCheckResourceAttr("kubestellar_cluster.test", "environment", "testing"),
+				Check: testingresource.ComposeAggregateTestCheckFunc(
+					testingresource.TestCheckResourceAttr("kubestellar_cluster.test", "name", "test-cluster"),
+					testingresource.TestCheckResourceAttr("kubestellar_cluster.test", "cluster_name", "test-cluster"),
+					testingresource.TestCheckResourceAttr("kubestellar_cluster.test", "environment", "testing"),
 				),
 			},
 		},
@@ -148,15 +150,15 @@ resource "kubestellar_cluster" "test" {
 
 // TestAccResourceWDS_basic tests basic WDS creation
 func TestAccResourceWDS_basic(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	testingresource.Test(t, testingresource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
+		Steps: []testingresource.TestStep{
 			{
 				Config: testAccResourceWDSConfig_basic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("kubestellar_wds.test", "name", "test-wds"),
-					resource.TestCheckResourceAttr("kubestellar_wds.test", "space_type", "vcluster"),
+				Check: testingresource.ComposeAggregateTestCheckFunc(
+					testingresource.TestCheckResourceAttr("kubestellar_wds.test", "name", "test-wds"),
+					testingresource.TestCheckResourceAttr("kubestellar_wds.test", "space_type", "vcluster"),
 				),
 			},
 		},
@@ -182,15 +184,15 @@ resource "kubestellar_wds" "test" {
 
 // TestAccResourceITS_basic tests basic ITS creation
 func TestAccResourceITS_basic(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	testingresource.Test(t, testingresource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
+		Steps: []testingresource.TestStep{
 			{
 				Config: testAccResourceITSConfig_basic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("kubestellar_its.test", "name", "test-its"),
-					resource.TestCheckResourceAttr("kubestellar_its.test", "sync_interval", "30s"),
+				Check: testingresource.ComposeAggregateTestCheckFunc(
+					testingresource.TestCheckResourceAttr("kubestellar_its.test", "name", "test-its"),
+					testingresource.TestCheckResourceAttr("kubestellar_its.test", "sync_interval", "30s"),
 				),
 			},
 		},
@@ -216,14 +218,14 @@ resource "kubestellar_its" "test" {
 
 // TestAccDataSourceClusters_basic tests the clusters data source
 func TestAccDataSourceClusters_basic(t *testing.T) {
-	resource.Test(t, resource.TestCase{
+	testingresource.Test(t, testingresource.TestCase{
 		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
+		Steps: []testingresource.TestStep{
 			{
 				Config: testAccDataSourceClustersConfig_basic(),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("data.kubestellar_clusters.all", "id"),
+				Check: testingresource.ComposeAggregateTestCheckFunc(
+					testingresource.TestCheckResourceAttrSet("data.kubestellar_clusters.all", "id"),
 				),
 			},
 		},
@@ -257,7 +259,7 @@ func TestProviderSchema(t *testing.T) {
 	// Validate required attributes exist
 	attrs := schemaResp.Schema.Attributes
 	expectedAttrs := []string{"kubeconfig", "context", "in_cluster", "validate_crds"}
-	
+
 	for _, attr := range expectedAttrs {
 		if _, ok := attrs[attr]; !ok {
 			t.Errorf("Expected attribute %q not found in provider schema", attr)
@@ -280,7 +282,7 @@ func TestBindingPolicyResourceSchema(t *testing.T) {
 	// Validate required attributes
 	attrs := schemaResp.Schema.Attributes
 	requiredAttrs := []string{"name", "namespace", "id"}
-	
+
 	for _, attr := range requiredAttrs {
 		if _, ok := attrs[attr]; !ok {
 			t.Errorf("Expected attribute %q not found in BindingPolicy schema", attr)
@@ -290,7 +292,7 @@ func TestBindingPolicyResourceSchema(t *testing.T) {
 	// Validate blocks exist
 	blocks := schemaResp.Schema.Blocks
 	expectedBlocks := []string{"cluster_selector", "downsync"}
-	
+
 	for _, block := range expectedBlocks {
 		if _, ok := blocks[block]; !ok {
 			t.Errorf("Expected block %q not found in BindingPolicy schema", block)
@@ -312,7 +314,7 @@ func TestClusterResourceSchema(t *testing.T) {
 
 	// Validate required and optional attributes
 	attrs := schemaResp.Schema.Attributes
-	
+
 	// Required attributes
 	if attr, ok := attrs["name"]; !ok || !attr.IsRequired() {
 		t.Error("Expected 'name' to be a required attribute")
@@ -320,7 +322,7 @@ func TestClusterResourceSchema(t *testing.T) {
 	if attr, ok := attrs["cluster_name"]; !ok || !attr.IsRequired() {
 		t.Error("Expected 'cluster_name' to be a required attribute")
 	}
-	
+
 	// Optional attributes
 	optionalAttrs := []string{"labels", "description", "location", "cloud_provider", "environment"}
 	for _, attrName := range optionalAttrs {
@@ -328,7 +330,7 @@ func TestClusterResourceSchema(t *testing.T) {
 			t.Errorf("Expected %q to be an optional attribute", attrName)
 		}
 	}
-	
+
 	// Computed attributes
 	computedAttrs := []string{"id", "status", "ready", "kubernetes_version"}
 	for _, attrName := range computedAttrs {
@@ -351,7 +353,7 @@ func TestWDSResourceSchema(t *testing.T) {
 	}
 
 	attrs := schemaResp.Schema.Attributes
-	
+
 	// Validate space_type attribute has correct validator
 	if _, ok := attrs["space_type"]; !ok {
 		t.Error("Expected 'space_type' attribute not found")
@@ -371,7 +373,7 @@ func TestITSResourceSchema(t *testing.T) {
 	}
 
 	attrs := schemaResp.Schema.Attributes
-	
+
 	// Validate sync_interval attribute exists
 	if _, ok := attrs["sync_interval"]; !ok {
 		t.Error("Expected 'sync_interval' attribute not found")

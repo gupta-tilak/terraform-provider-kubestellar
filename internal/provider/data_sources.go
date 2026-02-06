@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -186,7 +187,7 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		LabelSelector: labelSelector,
 	}
 
-	var list interface{}
+	var list *unstructured.UnstructuredList
 	var err error
 
 	if !data.Namespace.IsNull() {
@@ -220,49 +221,48 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	var clusters []attr.Value
 
-	listMap := list.(map[string]interface{})
-	if items, ok := listMap["items"].([]interface{}); ok {
-		for _, item := range items {
-			itemMap := item.(map[string]interface{})
-			metadata := itemMap["metadata"].(map[string]interface{})
-			spec := itemMap["spec"].(map[string]interface{})
+	for _, item := range list.Items {
+		itemMap := item.Object
+		metadata := itemMap["metadata"].(map[string]interface{})
+		spec, _ := itemMap["spec"].(map[string]interface{})
 
-			clusterName := ""
+		clusterName := ""
+		if spec != nil {
 			if cn, ok := spec["clusterName"].(string); ok {
 				clusterName = cn
 			}
-
-			labels := types.MapNull(types.StringType)
-			if labelsMap, ok := metadata["labels"].(map[string]interface{}); ok {
-				labelStrMap := make(map[string]string)
-				for k, v := range labelsMap {
-					labelStrMap[k] = v.(string)
-				}
-				labels, _ = types.MapValueFrom(ctx, types.StringType, labelStrMap)
-			}
-
-			ready := false
-			k8sVersion := ""
-			if status, ok := itemMap["status"].(map[string]interface{}); ok {
-				if r, ok := status["ready"].(bool); ok {
-					ready = r
-				}
-				if v, ok := status["kubernetesVersion"].(string); ok {
-					k8sVersion = v
-				}
-			}
-
-			clusterObj, _ := types.ObjectValue(clusterType.AttrTypes, map[string]attr.Value{
-				"name":               types.StringValue(metadata["name"].(string)),
-				"namespace":          types.StringValue(metadata["namespace"].(string)),
-				"cluster_name":       types.StringValue(clusterName),
-				"labels":             labels,
-				"ready":              types.BoolValue(ready),
-				"kubernetes_version": types.StringValue(k8sVersion),
-			})
-
-			clusters = append(clusters, clusterObj)
 		}
+
+		labels := types.MapNull(types.StringType)
+		if labelsMap, ok := metadata["labels"].(map[string]interface{}); ok {
+			labelStrMap := make(map[string]string)
+			for k, v := range labelsMap {
+				labelStrMap[k] = v.(string)
+			}
+			labels, _ = types.MapValueFrom(ctx, types.StringType, labelStrMap)
+		}
+
+		ready := false
+		k8sVersion := ""
+		if status, ok := itemMap["status"].(map[string]interface{}); ok {
+			if r, ok := status["ready"].(bool); ok {
+				ready = r
+			}
+			if v, ok := status["kubernetesVersion"].(string); ok {
+				k8sVersion = v
+			}
+		}
+
+		clusterObj, _ := types.ObjectValue(clusterType.AttrTypes, map[string]attr.Value{
+			"name":               types.StringValue(metadata["name"].(string)),
+			"namespace":          types.StringValue(metadata["namespace"].(string)),
+			"cluster_name":       types.StringValue(clusterName),
+			"labels":             labels,
+			"ready":              types.BoolValue(ready),
+			"kubernetes_version": types.StringValue(k8sVersion),
+		})
+
+		clusters = append(clusters, clusterObj)
 	}
 
 	data.Clusters, _ = types.ListValue(clusterType, clusters)
